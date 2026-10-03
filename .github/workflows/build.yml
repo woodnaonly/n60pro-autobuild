@@ -69,7 +69,7 @@ jobs:
           echo "=== source head ==="
           git log -1 --format='%h %s (%cd)' --date=short
 
-      - name: Apply QModem feed + 512ROM profile
+      - name: Apply feeds + 512ROM profile
         working-directory: openwrt
         run: |
           chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -94,8 +94,75 @@ jobs:
           cp $CONFIG_FILE openwrt/.config
           cd openwrt
           make defconfig
+          if ! grep -Fxq 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_netcore_n60-pro-512rom=y' .config; then
+            echo "::error::N60 Pro 512ROM target was not selected after make defconfig"
+            exit 1
+          fi
+          forbidden_packages=(
+            kmod-usb-serial
+            kmod-usb-serial-option
+            kmod-usb-serial-wwan
+            kmod-usb-net
+            kmod-usb-net-qmi-wwan
+            kmod-usb-net-cdc-mbim
+            kmod-usb-net-cdc-ncm
+            kmod-usb-net-cdc-ether
+            kmod-usb-net-cdc-subset
+            kmod-usb-net-rndis
+            kmod-usb-net-huawei-cdc-ncm
+            kmod-mhi
+            uqmi
+            umbim
+            qmodem
+            luci-app-qmodem-next
+            kmod-usb-ledtrig-usbport
+          )
+          for package in "${forbidden_packages[@]}"; do
+            if grep -Fxq "CONFIG_PACKAGE_${package}=y" .config; then
+              echo "::error::Removed package '${package}' is still selected after make defconfig"
+              exit 1
+            fi
+          done
+          required_packages=(
+            kmod-usb3
+            kmod-usb-storage
+            kmod-usb-storage-uas
+            kmod-usb-storage-extras
+            automount
+            autocore
+            luci-app-turboacc-mtk
+            luci-app-filemanager
+            luci-app-netspeedtest
+            luci-app-package-manager
+            luci-app-passwall
+            luci-app-usteer
+            luci-i18n-base-zh-cn
+            luci-i18n-firewall-zh-cn
+            luci-i18n-passwall-zh-cn
+            luci-i18n-usteer-zh-cn
+            dnsmasq-full
+            usteer
+            luci-lib-chartjs
+            luci-theme-bootstrap
+            sing-box
+            xray-core
+            ipt2socks
+            v2ray-plugin
+            shadowsocks-rust-sslocal
+            shadowsocksr-libev-ssr-local
+            shadowsocksr-libev-ssr-redir
+            homebox
+            ookla-speedtest
+            iperf3
+          )
+          for package in "${required_packages[@]}"; do
+            if ! grep -Fxq "CONFIG_PACKAGE_${package}=y" .config; then
+              echo "::error::Required package '${package}' was not selected after make defconfig"
+              exit 1
+            fi
+          done
           echo "=== device check ==="
-          grep -E 'TARGET_DEVICE|qmodem|usb3|turboacc' .config | head -30 || true
+          grep -E 'TARGET_DEVICE|turboacc' .config | head -30 || true
 
       - name: Download packages
         working-directory: openwrt
@@ -142,9 +209,8 @@ jobs:
           body: |
             ## 磊科 N60 Pro 定制固件
             - 源码: chasey-dev/immortalwrt-mt798x-rebase (${{ env.REPO_BRANCH }})
-            - QModem + luci-app-qmodem-next (5G模组管理)
-            - 全协议模组驱动 (QMI/MBIM/NCM/ECM/RNDIS)
-            - USB3.0 + UAS + automount
+            - USB 存储包配置与当前路由器一致
+            - 不包含 USB 蜂窝模组驱动或拨号工具
             - MTK HNAT 硬件加速 (turboacc-mtk)
 
             刷机步骤见 README.md

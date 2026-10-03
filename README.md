@@ -5,10 +5,12 @@
 ## 固件特性
 
 - 源码: [chasey-dev/immortalwrt-mt798x-rebase](https://github.com/chasey-dev/immortalwrt-mt798x-rebase) `25.12` 分支（MTK 原厂有线/无线驱动 + HNAT）
-- 5G 模组管理: [QModem](https://github.com/FUjr/QModem) + `luci-app-qmodem-next`
-- 全协议模组驱动: QMI / MBIM / NCM / ECM / RNDIS / serial-option（移远、中兴、华为等 USB 模组通吃）
-- USB3.0 + UAS 存储 + automount（可插 U 盘扩容）
-- MTK HNAT 硬件加速（`luci-app-turboacc-mtk`，支持 USB 模组做 WAN）
+- USB 存储支持（USB 3.0、UAS、automount；与当前路由器包配置一致）
+- 不包含 USB 蜂窝模组驱动或拨号工具
+- MTK HNAT 硬件加速（`luci-app-turboacc-mtk`）
+- 路由器常用应用: PassWall、多协议代理核心、LuCI 文件管理、uSteer、网速测试
+- 软件包按 ImmortalWrt 25.12 源码构建；网速测试使用当前上游依赖，不复用 Kwrt 24.10 的二进制包
+- 旧版 Kwrt 的 `shadowsocks-libev` 分包不在目标源码中，使用目标源码可构建的代理核心
 - 512MB 闪存大分区布局（ubi=490MB 吃满，适配恩山 WildEdition U-Boot `506.5MB` 分区表）
 
 ## 使用
@@ -34,4 +36,3 @@
 ## 默认参数
 
 - IP: `192.168.1.1`，用户 `root`，密码空（首次登录即设置）
-- QModem 位置：LuCI → 网络 → 蜂窝网络管理
