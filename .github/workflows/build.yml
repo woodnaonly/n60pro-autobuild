@@ -69,6 +69,47 @@ jobs:
           echo "=== source head ==="
           git log -1 --format='%h %s (%cd)' --date=short
 
+      - name: Set default root password
+        working-directory: openwrt
+        run: |
+          password_file="$GITHUB_WORKSPACE/configs/root-password.txt"
+          shadow_file="package/base-files/files/etc/shadow"
+          if [ ! -s "$password_file" ]; then
+            echo "::error::Root password file is missing or empty"
+            exit 1
+          fi
+          if [ "$(awk 'END { print NR }' "$password_file")" -ne 1 ]; then
+            echo "::error::Root password file must contain exactly one line"
+            exit 1
+          fi
+          if [ ! -f "$shadow_file" ] || [ "$(grep -c '^root:' "$shadow_file")" -ne 1 ]; then
+            echo "::error::Expected exactly one root entry in the base-files shadow file"
+            exit 1
+          fi
+          password="$(cat "$password_file")"
+          case "$password" in
+            *:*)
+              echo "::error::Root password cannot contain a colon"
+              exit 1
+              ;;
+          esac
+          root_hash="$(printf '%s' "$password" | openssl passwd -6 -stdin)"
+          unset password
+          case "$root_hash" in
+            '$6$'*)
+              ;;
+            *)
+              echo "::error::Failed to generate a SHA-512 crypt root password hash"
+              exit 1
+              ;;
+          esac
+          sed -i -E "s|^(root:)[^:]*:|\\1${root_hash}:|" "$shadow_file"
+          if ! grep -Fq "root:${root_hash}:" "$shadow_file"; then
+            echo "::error::Failed to set the root password in the base-files shadow file"
+            exit 1
+          fi
+          unset root_hash
+
       - name: Apply feeds + 512ROM profile
         working-directory: openwrt
         run: |
@@ -81,6 +122,8 @@ jobs:
           if [ -d "$GITHUB_WORKSPACE/files" ]; then
             cp -r $GITHUB_WORKSPACE/files/* openwrt/
           fi
+          mkdir -p openwrt/files
+          cp -r "$GITHUB_WORKSPACE/rootfs-overlay/." openwrt/files/
           ls openwrt/target/linux/mediatek/dts/ | grep 512rom
 
       - name: Update & install feeds

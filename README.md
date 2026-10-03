@@ -35,4 +35,6 @@
 
 ## 默认参数
 
-- IP: `192.168.1.1`，用户 `root`，密码空（首次登录即设置）
+- IP: `192.168.1.1`，用户 `root`，密码 `t29Ur9.3@casd2.`
+- 2.4GHz Wi-Fi: SSID `ChianNet-Suchuu`，密码 `kfuy4937`（WPA2-PSK）
+- 5GHz Wi-Fi: SSID `ChianNet-Suchuu-5G`，密码 `kfuy4937`（WPA2-PSK）

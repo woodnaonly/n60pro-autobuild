@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+
+configure_band() {
+  band="$1"
+  ssid="$2"
+  device=""
+  iface=""
+
+  for section in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-device$/\1/p'); do
+    configured_band="$(uci -q get "wireless.$section.band" 2>/dev/null || true)"
+    if [ "$configured_band" = "$band" ]; then
+      device="$section"
+      break
+    fi
+  done
+
+  if [ -z "$device" ]; then
+    echo "No wireless device found for band $band"
+    return 1
+  fi
+
+  for section in $(uci -q show wireless | sed -n 's/^wireless\.\([^=]*\)=wifi-iface$/\1/p'); do
+    iface_device="$(uci -q get "wireless.$section.device" 2>/dev/null || true)"
+    iface_mode="$(uci -q get "wireless.$section.mode" 2>/dev/null || true)"
+    if [ "$iface_device" = "$device" ] &&
+      { [ -z "$iface_mode" ] || [ "$iface_mode" = "ap" ]; }; then
+      iface="$section"
+      break
+    fi
+  done
+
+  if [ -z "$iface" ]; then
+    echo "No access point found for wireless band $band"
+    return 1
+  fi
+
+  uci set "wireless.$device.disabled=0"
+  uci set "wireless.$iface.ssid=$ssid"
+  uci set "wireless.$iface.encryption=psk2"
+  uci set "wireless.$iface.key=kfuy4937"
+  uci set "wireless.$iface.disabled=0"
+}
+
+configure_band 2g ChianNet-Suchuu
+configure_band 5g ChianNet-Suchuu-5G
+uci commit wireless
