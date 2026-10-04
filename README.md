@@ -16,6 +16,8 @@
 ## 使用
 
 1. 进 Actions 页手动触发 `N60Pro Firmware Build`（或等每周六自动构建）
+   - 手动触发时支持在界面自定义 Root 密码、2.4G/5G Wi-Fi 名称（SSID）及 Wi-Fi 密码；留空或定时构建将使用下方默认参数。
+   - 如需全新编译排查问题，可勾选「忽略缓存全新编译」。
 2. 完成后到 Releases 下载固件
 
 ## 刷机步骤（N60 Pro）
@@ -35,6 +37,6 @@
 
 ## 默认参数
 
-- IP: `192.168.1.1`，用户 `root`，密码 `t29Ur9.3@casd2.`
-- 2.4GHz Wi-Fi: SSID `ChianNet-Suchuu`，密码 `kfuy4937`（WPA2-PSK）
-- 5GHz Wi-Fi: SSID `ChianNet-Suchuu-5G`，密码 `kfuy4937`（WPA2-PSK）
+- IP: `192.168.1.1`，用户 `root`，默认密码 `t29Ur9.3@casd2.`（可在 Actions 手动触发时自定义）
+- 2.4GHz Wi-Fi: 默认 SSID `ChianNet-Suchuu`，密码 `kfuy4937`（WPA2-PSK，可在 Actions 手动触发时自定义）
+- 5GHz Wi-Fi: 默认 SSID `ChianNet-Suchuu-5G`，密码 `kfuy4937`（WPA2-PSK，可在 Actions 手动触发时自定义）

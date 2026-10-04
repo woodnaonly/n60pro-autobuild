@@ -4,6 +4,7 @@ set -e
 configure_band() {
   band="$1"
   ssid="$2"
+  key="$3"
   device=""
   iface=""
 
@@ -38,10 +39,10 @@ configure_band() {
   uci set "wireless.$device.disabled=0"
   uci set "wireless.$iface.ssid=$ssid"
   uci set "wireless.$iface.encryption=psk2"
-  uci set "wireless.$iface.key=kfuy4937"
+  uci set "wireless.$iface.key=$key"
   uci set "wireless.$iface.disabled=0"
 }
 
-configure_band 2g ChianNet-Suchuu
-configure_band 5g ChianNet-Suchuu-5G
+configure_band 2g 'ChianNet-Suchuu' 'kfuy4937'
+configure_band 5g 'ChianNet-Suchuu-5G' 'kfuy4937'
 uci commit wireless

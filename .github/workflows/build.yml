@@ -8,6 +8,26 @@ on:
         required: false
         default: 'false'
         type: boolean
+      root_password:
+        description: 'Root 登录密码 (留空使用默认)'
+        required: false
+        default: 't29Ur9.3@casd2.'
+        type: string
+      wifi_ssid_2g:
+        description: '2.4GHz Wi-Fi 名称 (SSID)'
+        required: false
+        default: 'ChianNet-Suchuu'
+        type: string
+      wifi_ssid_5g:
+        description: '5GHz Wi-Fi 名称 (SSID)'
+        required: false
+        default: 'ChianNet-Suchuu-5G'
+        type: string
+      wifi_password:
+        description: 'Wi-Fi 密码 (8-63 位，双频共用)'
+        required: false
+        default: 'kfuy4937'
+        type: string
   schedule:
     - cron: '0 18 * * 5'   # 每周六 02:00 (UTC+8) 自动跟源码重编
 
@@ -71,28 +91,38 @@ jobs:
 
       - name: Set default root password
         working-directory: openwrt
+        env:
+          INPUT_ROOT_PASSWORD: ${{ inputs.root_password }}
         run: |
           password_file="$GITHUB_WORKSPACE/configs/root-password.txt"
           shadow_file="package/base-files/files/etc/shadow"
-          if [ ! -s "$password_file" ]; then
-            echo "::error::Root password file is missing or empty"
+          if [ -n "$INPUT_ROOT_PASSWORD" ]; then
+            password="$INPUT_ROOT_PASSWORD"
+          elif [ -s "$password_file" ]; then
+            if [ "$(awk 'END { print NR }' "$password_file")" -ne 1 ]; then
+              echo "::error::Root password file must contain exactly one line"
+              exit 1
+            fi
+            password="$(cat "$password_file")"
+          else
+            echo "::error::Root password is missing and password file is not found or empty"
             exit 1
           fi
-          if [ "$(awk 'END { print NR }' "$password_file")" -ne 1 ]; then
-            echo "::error::Root password file must contain exactly one line"
+          unset INPUT_ROOT_PASSWORD
+          if [ -z "$password" ]; then
+            echo "::error::Root password cannot be empty"
             exit 1
           fi
-          if [ ! -f "$shadow_file" ] || [ "$(grep -c '^root:' "$shadow_file")" -ne 1 ]; then
-            echo "::error::Expected exactly one root entry in the base-files shadow file"
-            exit 1
-          fi
-          password="$(cat "$password_file")"
           case "$password" in
             *:*)
               echo "::error::Root password cannot contain a colon"
               exit 1
               ;;
           esac
+          if [ ! -f "$shadow_file" ] || [ "$(grep -c '^root:' "$shadow_file")" -ne 1 ]; then
+            echo "::error::Expected exactly one root entry in the base-files shadow file"
+            exit 1
+          fi
           root_hash="$(printf '%s' "$password" | openssl passwd -6 -stdin)"
           unset password
           case "$root_hash" in
@@ -116,6 +146,14 @@ jobs:
           chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH $GITHUB_WORKSPACE/$DIY_P2_SH
           $GITHUB_WORKSPACE/$DIY_P1_SH
           $GITHUB_WORKSPACE/$DIY_P2_SH
+
+      - name: Configure default Wi-Fi credentials
+        env:
+          INPUT_WIFI_SSID_2G: ${{ inputs.wifi_ssid_2g }}
+          INPUT_WIFI_SSID_5G: ${{ inputs.wifi_ssid_5g }}
+          INPUT_WIFI_PASSWORD: ${{ inputs.wifi_password }}
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/configure-wifi.py" "$GITHUB_WORKSPACE/rootfs-overlay/etc/uci-defaults/99-default-wifi"
 
       - name: Copy files overlay
         run: |
