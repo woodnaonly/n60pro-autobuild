@@ -235,6 +235,8 @@ jobs:
             homebox
             ookla-speedtest
             iperf3
+            u-boot-mt7986_netcore_n60-pro
+            trusted-firmware-a-mt7986-spim-nand-ddr4
           )
           for package in "${required_packages[@]}"; do
             if ! grep -Fxq "CONFIG_PACKAGE_${package}=y" .config; then
@@ -259,6 +261,16 @@ jobs:
           echo -e "$(nproc) thread compile"
           make -j$(nproc) || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Upload build logs on failure
+        if: failure() && steps.compile.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-build-logs
+          path: |
+            openwrt/logs
+            openwrt/.config
+          if-no-files-found: ignore
 
       - name: Check space usage
         if: steps.compile.outputs.status == 'success'

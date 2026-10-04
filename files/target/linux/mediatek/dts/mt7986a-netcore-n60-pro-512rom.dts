@@ -10,7 +10,7 @@
 
 / {
 	model = "Netcore N60 Pro (512MB ROM)";
-	compatible = "netcore,n60-pro-512rom", "mediatek,mt7986a";
+	compatible = "netcore,n60-pro-512rom", "netcore,n60-pro", "mediatek,mt7986a";
 
 	aliases {
 		serial0 = &uart0;
