@@ -1,5 +1,7 @@
 #!/bin/bash
 # 注册 512MB ROM 变体 (ubi=490MB 吃满, 对应 WildEdition uboot 的 506.5MB 分区表)
+# 注意：该设备采用 UBI NAND layout，因此必须使用 spim-nand-ubi-ddr4 生成 bl2。
+# 直接使用 spim-nand-ddr4 会生成不存在的 mt7986-spim-nand-ddr4-bl2.img，导致 build 报错。
 cat >> target/linux/mediatek/image/filogic.mk <<'MK'
 
 define Device/netcore_n60-pro-512rom
@@ -21,7 +23,7 @@ define Device/netcore_n60-pro-512rom
 	fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | append-metadata
   DEVICE_PACKAGES := kmod-usb3 kmod-usb-storage kmod-usb-storage-uas automount autocore kmod-usb-storage-extras
   ARTIFACTS := preloader.bin bl31-uboot.fip
-  ARTIFACT/preloader.bin := mt7986-bl2 spim-nand-ddr4
+  ARTIFACT/preloader.bin := mt7986-bl2 spim-nand-ubi-ddr4
   ARTIFACT/bl31-uboot.fip := mt7986-bl31-uboot netcore_n60-pro
 endef
 TARGET_DEVICES += netcore_n60-pro-512rom
