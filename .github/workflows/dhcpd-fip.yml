@@ -1,0 +1,135 @@
+name: N60Pro dhcpd U-Boot FIP (ubootmod)
+
+# Builds only the FIP (BL31 + U-Boot) from Yuzhii0718/bl-mt798x-dhcpd,
+# ubootmod variant: same MTD layout as ImmortalWrt ubootmod
+# (bl2/u-boot-env/factory/fip/ubi), env in UBI ubootenv/ubootenv2, no NMBM.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dhcpd-fip.yml
+
+env:
+  SRC_REPO: https://github.com/Yuzhii0718/bl-mt798x-dhcpd
+  SRC_SHA: e4cf4dc72d451dc7a86c9508390ad5a2e50743c4
+  BOARD: netcore_n60-pro
+  SOC: mt7986
+  FIP_VERSION: '2025'
+  VARIANT: ubootmod
+  TZ: Asia/Shanghai
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dhcpd-fip-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Clone source (pinned commit)
+        run: |
+          git init -q bl-mt798x-dhcpd
+          cd bl-mt798x-dhcpd
+          git remote add origin "$SRC_REPO"
+          git fetch -q --depth 1 origin "$SRC_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SRC_SHA"
+          git log -1 --format='%H %s (%cd)' --date=short
+
+      - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install $(cat bl-mt798x-dhcpd/depends/ubuntu-22.04)
+          aarch64-linux-gnu-gcc --version | head -1
+          node --version
+          npm --version
+
+      - name: Use non-NMBM ATF config
+        working-directory: bl-mt798x-dhcpd
+        run: |
+          # ubootmod reads the ATF config from configs/; the router's current
+          # BL2 does not use NMBM, so build with the configs-nonmbm variant.
+          cfg="${SOC}_${BOARD}_defconfig"
+          cp -fv "atf-20250711/configs-nonmbm/$cfg" "atf-20250711/configs/$cfg"
+          echo "=== ATF config ==="
+          cat "atf-20250711/configs/$cfg"
+          echo "=== U-Boot config (configs-fit) ==="
+          cat "uboot-mtk-20250711/configs-fit/$cfg"
+
+      - name: Build FIP
+        working-directory: bl-mt798x-dhcpd
+        run: |
+          SILENT=Y BOARD="$BOARD" SOC="$SOC" VERSION="$FIP_VERSION" VARIANT="$VARIANT" \
+            MULTI_LAYOUT=0 COPY_BL2=0 ./build.sh 2>&1 | tee build.log
+          make -C uboot-mtk-20250711 CROSS_COMPILE=aarch64-linux-gnu- u-boot-initial-env >/dev/null 2>&1 || true
+          ls -la output
+
+      - name: Verify FIP
+        working-directory: bl-mt798x-dhcpd
+        run: |
+          shopt -s nullglob
+          fips=(output/fip-*.bin)
+          [ "${#fips[@]}" -eq 1 ] || { echo "::error::expected exactly one FIP, got ${#fips[@]}"; exit 1; }
+          fip="${fips[0]}"
+          size=$(stat -c%s "$fip")
+          md5=$(md5sum "$fip" | awk '{print $1}')
+          echo "FIP: $fip"
+          echo "size: $size bytes (fip partition: 2097152 bytes)"
+          echo "md5: $md5"
+          [ "$size" -le 2097152 ] || { echo "::error::FIP larger than the 2 MiB fip partition"; exit 1; }
+          case "$fip" in *"_md5-$md5.bin") ;; *) echo "::error::md5 in filename mismatch"; exit 1 ;; esac
+          strings -n 6 "$fip" > fip-strings.txt
+          grep -m1 -E '^U-Boot 2025' fip-strings.txt
+          grep -q 'spi-nand0:1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),-(ubi)' fip-strings.txt
+          grep -q 'ubootenv2' fip-strings.txt
+          echo "=== U-Boot .config (key options) ==="
+          grep -E '^CONFIG_(ENV_|MTK_|MTDPARTS|MEDIATEK_|WEBUI_|IPADDR|SERVERIP|NMBM)' uboot-mtk-20250711/.config || true
+          if grep -Eq '^CONFIG_(NMBM|ENABLE_NAND_NMBM)=y' uboot-mtk-20250711/.config; then
+            echo "::error::NMBM enabled in U-Boot"
+            exit 1
+          fi
+
+          mkdir -p upload
+          cp -v "$fip" upload/
+          name=$(basename "$fip")
+          (cd upload && md5sum "$name" > "$name.md5" && sha256sum "$name" > "$name.sha256")
+          [ -f uboot-mtk-20250711/u-boot-initial-env ] && cp -v uboot-mtk-20250711/u-boot-initial-env upload/u-boot-initial-env.txt
+          cp -v uboot-mtk-20250711/.config upload/uboot-config.txt
+          cp -v build.log upload/build.log
+          echo "FIP_NAME=$name" >> "$GITHUB_ENV"
+          echo "FIP_MD5=$md5" >> "$GITHUB_ENV"
+          echo "FIP_SIZE=$size" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n60pro-dhcpd-fip-ubootmod
+          path: bl-mt798x-dhcpd/upload/*
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: dhcpd-fip-ubootmod-${{ github.run_number }}
+          name: N60Pro dhcpd U-Boot FIP (ubootmod) ${{ github.run_number }}
+          files: bl-mt798x-dhcpd/upload/*
+          body: |
+            ## N60 Pro bl-mt798x-dhcpd FIP (ubootmod)
+            - 源码: Yuzhii0718/bl-mt798x-dhcpd @ ${{ env.SRC_SHA }}
+            - 版本: ATF 20250711 + U-Boot 2025.07 (VERSION=2025, VARIANT=ubootmod)
+            - 分区: 1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),-(ubi)
+            - 环境变量: UBI 卷 ubootenv / ubootenv2，无 NMBM
+            - 文件: ${{ env.FIP_NAME }} (${{ env.FIP_SIZE }} 字节, md5 ${{ env.FIP_MD5 }})
+
+            只刷 fip 分区，保留现有 bl2。
