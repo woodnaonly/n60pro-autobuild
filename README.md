@@ -23,21 +23,22 @@
 
 > ⚠️ 刷机有风险，变砖可救（recovery 镜像 + TTL/有线恢复），操作前确保电量/电源稳定。
 
-1. **刷第三方 uboot**（如果还没刷）：
+1. **刷本仓库的 U-Boot**（当前 U-Boot 不是 2025.10 时才需要）：
    - 所需 U-Boot 版本：2025.10（与本固件的 `u-boot-mt7986_netcore_n60-pro` 包一致）
-   - 下载 Release 里的 `bl31-uboot.fip` 和 `preloader.bin`
-   - SSH 到当前固件（原厂需先开 SSH），上传后先核对分区：
+   - 若设备已刷过 bl-mt798x 的 U-Boot（2022.07，分区由 NMBM 管理），本步骤会改写 `bl2` 和 `fip`，并让 UBI 从 114.5 MiB 扩大到 122.5 MiB（本仓库的分区表没有 NMBM 配置）。刷前先备份 `factory`、`u-boot-env`、`bl2`、`fip`、`ubi`，其中 `factory` 含 MAC 和校准数据。
+   - 下载 Release 里的 `*-bl31-uboot.fip` 和 `*-preloader.bin`，上传到设备 `/tmp` 后改名为 `bl31-uboot.fip` 和 `preloader.bin`
+   - SSH 到当前固件（原厂需先开 SSH），核对分区和文件大小：
      ```
      cat /proc/mtd
      ls -l /tmp/preloader.bin /tmp/bl31-uboot.fip
      ```
-     核对要点：`/proc/mtd` 中必须有名为 `Preloader` 和 `FIP` 的分区，两个文件的字节数都不能超过对应分区的大小（`/proc/mtd` 的 size 为十六进制，需换算）。任一条件不满足就停止，不要执行写入。本固件只面向标准 N60 Pro，已移除 512ROM 变体，分区不一致时不要刷入。
+     核对要点：`/proc/mtd` 中必须有名为 `bl2` 和 `fip` 的分区，大小分别为 `00100000`（1 MiB）和 `00200000`（2 MiB），`/proc/mtd` 的 size 为十六进制。两个文件的字节数都不能超过对应分区的大小。任一条件不满足就停止，不要执行写入。本固件只面向标准 N60 Pro，已移除 512ROM 变体，分区不一致时不要刷入。
      ```
-     mtd write /tmp/preloader.bin Preloader
-     mtd write /tmp/bl31-uboot.fip FIP
+     mtd write /tmp/preloader.bin bl2
+     mtd write /tmp/bl31-uboot.fip fip
      ```
    - 断电，按住 reset 上电进入 uboot（192.168.1.1）
-2. **刷固件**：uboot 页面上传 `*-sysupgrade.itb` 刷写；已在本模板固件上的用 `sysupgrade -n` 升级
+2. **刷固件**：uboot 页面上传 `*-sysupgrade.itb` 刷写；已运行本仓库固件的设备，可在系统内用 `sysupgrade -n` 升级
 3. **救砖**：下载 `*-recovery.itb`，TTL/uboot 刷入 recovery 分区
 
 ## 默认参数
