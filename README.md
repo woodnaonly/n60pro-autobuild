@@ -8,7 +8,9 @@
 - USB 存储支持（USB 3.0、UAS、automount；与当前路由器包配置一致）
 - 不包含 USB 蜂窝模组驱动或拨号工具
 - MTK HNAT 硬件加速（`luci-app-turboacc-mtk`）
-- honk 透明代理：LuCI 界面与打包来自 189160/luci-app-honk，核心取 Glassyiris/honk（daeuniverse/honk 的 fork）预编译包，内核开启 BTF，服务默认关闭
+- honk 透明代理：LuCI 界面、配置和服务脚本来自 189160/luci-app-honk，内核开启 BTF，服务默认关闭
+  - 为节省闪存，固件**不内置** honk 核心 `/usr/bin/honk-core`（约 26 MiB）和 `geoip.dat`（`v2ray-geoip`，约 22 MiB），`geosite.dat` 仍保留
+  - 使用前需自行放入 Glassyiris/honk 的 aarch64 musl 核心到 `/usr/bin/honk-core` 并 `chmod +x`，再把 `geoip.dat` 放到 `/usr/share/v2ray/`；默认路由规则会用到 `geoip:`，缺少该文件时 honk 无法按默认配置启动
 - 路由器常用应用: honk 透明代理、LuCI 文件管理、uSteer、网速测试
 - 软件包按 ImmortalWrt 25.12 源码构建；网速测试由 FengYinYH/luci-app-netspeedtest 的 main 分支源码构建（netspeed-engine、luci-app-netspeed），不复用 Kwrt 24.10 的二进制包
 

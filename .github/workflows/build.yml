@@ -36,6 +36,7 @@ env:
   REPO_BRANCH: 25.12
   CONFIG_FILE: configs/n60pro.config
   DIY_P1_SH: scripts/diy-part1.sh
+  DIY_P2_SH: scripts/diy-part2.sh
 
 permissions: write-all
 
@@ -169,6 +170,12 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+      - name: Patch feed packages
+        working-directory: openwrt
+        run: |
+          chmod +x $GITHUB_WORKSPACE/$DIY_P2_SH
+          $GITHUB_WORKSPACE/$DIY_P2_SH
+
       - name: Load config
         run: |
           cp $CONFIG_FILE openwrt/.config
@@ -207,6 +214,7 @@ jobs:
             shadowsocksr-libev-ssr-local
             shadowsocksr-libev-ssr-redir
             luci-app-netspeedtest
+            v2ray-geoip
           )
           for package in "${forbidden_packages[@]}"; do
             if grep -Fxq "CONFIG_PACKAGE_${package}=y" .config; then
@@ -266,6 +274,36 @@ jobs:
           make -j$(nproc) || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
 
+      - name: Verify honk assets are excluded
+        working-directory: openwrt
+        run: |
+          shopt -s nullglob
+          roots=(build_dir/target-*/root-mediatek build_dir/target-*/linux-mediatek_filogic/target-dir-*)
+          if [ "${#roots[@]}" -eq 0 ]; then
+            echo "::error::No rootfs staging directory found"
+            exit 1
+          fi
+          honk_found=0
+          for root in "${roots[@]}"; do
+            for path in usr/bin/honk-core usr/share/v2ray/geoip.dat; do
+              if [ -e "$root/$path" ]; then
+                echo "::error::$path is still present in $root"
+                exit 1
+              fi
+            done
+            [ -f "$root/etc/init.d/honk" ] && honk_found=1
+          done
+          if [ "$honk_found" -ne 1 ]; then
+            echo "::error::honk package files were not found in the rootfs staging directories"
+            exit 1
+          fi
+          manifests=(bin/targets/*/*/*.manifest)
+          if [ "${#manifests[@]}" -gt 0 ] && grep -q '^v2ray-geoip ' "${manifests[@]}"; then
+            echo "::error::v2ray-geoip is still listed in the image manifest"
+            exit 1
+          fi
+          echo "honk-core and geoip.dat are not in the firmware rootfs"
+
       - name: Upload build logs on failure
         if: failure() && steps.compile.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -309,5 +347,6 @@ jobs:
             - USB 存储包配置与当前路由器一致
             - 不包含 USB 蜂窝模组驱动或拨号工具
             - MTK HNAT 硬件加速 (turboacc-mtk)
+            - 不内置 honk-core 与 geoip.dat，使用 honk 前需自行放入
 
             刷机步骤见 README.md
