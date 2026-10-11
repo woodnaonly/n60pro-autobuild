@@ -86,21 +86,43 @@ jobs:
           echo "FIP: $fip"
           echo "size: $size bytes (fip partition: 2097152 bytes)"
           echo "md5: $md5"
+          echo "::notice::FIP $(basename "$fip") size=$size md5=$md5"
           [ "$size" -le 2097152 ] || { echo "::error::FIP larger than the 2 MiB fip partition"; exit 1; }
           case "$fip" in *"_md5-$md5.bin") ;; *) echo "::error::md5 in filename mismatch"; exit 1 ;; esac
+
+          # Binary string probes are informational only.
           strings -n 6 "$fip" > fip-strings.txt
-          grep -m1 -E '^U-Boot 2025' fip-strings.txt
-          grep -q 'spi-nand0:1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),-(ubi)' fip-strings.txt
-          grep -q 'ubootenv2' fip-strings.txt
+          for pat in 'U-Boot 2025' 'ubootenv2' '2048k(fip)' 'failsafe'; do
+            if grep -m2 -F "$pat" fip-strings.txt; then :; else echo "::warning::string not found in FIP: $pat"; fi
+          done
+          ver=$(grep -m1 -F 'U-Boot 2025' fip-strings.txt || true)
+          echo "::notice::version string: ${ver:-<none>}"
+
+          # Hard checks on the U-Boot config actually used.
+          ucfg=uboot-mtk-20250711/.config
           echo "=== U-Boot .config (key options) ==="
-          grep -E '^CONFIG_(ENV_|MTK_|MTDPARTS|MEDIATEK_|WEBUI_|IPADDR|SERVERIP|NMBM)' uboot-mtk-20250711/.config || true
-          if grep -Eq '^CONFIG_(NMBM|ENABLE_NAND_NMBM)=y' uboot-mtk-20250711/.config; then
+          grep -E '^CONFIG_(ENV_|MTK_|MTDPARTS|MEDIATEK_|WEBUI_|IPADDR|SERVERIP|NMBM|ENABLE_NAND_NMBM)' "$ucfg" || true
+          need=(
+            'CONFIG_ENV_IS_IN_UBI=y'
+            'CONFIG_ENV_SIZE=0x1f000'
+            'CONFIG_ENV_UBI_PART="ubi"'
+            'CONFIG_ENV_UBI_VOLUME="ubootenv"'
+            'CONFIG_ENV_UBI_VOLUME_REDUND="ubootenv2"'
+            'CONFIG_MTDPARTS_DEFAULT="spi-nand0:1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),-(ubi)"'
+            'CONFIG_MTK_BOOTMENU_UBI=y'
+            'CONFIG_MTK_WEB_FAILSAFE=y'
+          )
+          for line in "${need[@]}"; do
+            grep -Fxq "$line" "$ucfg" || { echo "::error::missing in U-Boot config: $line"; exit 1; }
+          done
+          if grep -Eq '^CONFIG_(NMBM|ENABLE_NAND_NMBM)=y' "$ucfg"; then
             echo "::error::NMBM enabled in U-Boot"
             exit 1
           fi
 
           mkdir -p upload
           cp -v "$fip" upload/
+          cp -v fip-strings.txt upload/fip-strings.txt
           name=$(basename "$fip")
           (cd upload && md5sum "$name" > "$name.md5" && sha256sum "$name" > "$name.sha256")
           [ -f uboot-mtk-20250711/u-boot-initial-env ] && cp -v uboot-mtk-20250711/u-boot-initial-env upload/u-boot-initial-env.txt
