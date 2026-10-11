@@ -1,0 +1,6 @@
+#!/bin/sh
+# Keep the NAND health daemon out of the temporary recovery session.
+if [ -x /etc/init.d/ubihealthd ]; then
+	/etc/init.d/ubihealthd disable
+fi
+exit 0

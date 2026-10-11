@@ -21,6 +21,23 @@
    - 如需全新编译排查问题，可勾选「忽略缓存全新编译」。
 2. 完成后到 Releases 下载固件
 
+## 有线精简 Recovery
+
+`N60Pro Wired Recovery Build` 是独立的手动构建任务，使用 `configs/n60pro-recovery.config`，不修改正常固件配置。源码固定为已核对的 `a99b0888b88f134f56bcb2a7d93027b5d20638a9`，上游软件源也固定版本，不加载 honk、测速等第三方源。
+
+- 只带有线 DHCP、SSH、系统升级、NAND/UBI 恢复工具；没有 Wi-Fi、LuCI、插件或 NAT，不配置 WAN。
+- 管理地址为 `10.0.0.1/24`，连接 **LAN1-LAN4**，DHCP 地址范围为 `10.0.0.100-149`。这是 recovery 的固定地址，不代表当前设备或电脑 Wi-Fi 的地址。
+- 用户为 `root`；密码优先使用任务输入，留空使用 `configs/root-password.txt`，不使用空密码。通过 `ssh root@10.0.0.1` 管理。
+- 使用独立源码目录和 `recovery-overlay`，不复制日常固件的 IP/Wi-Fi 设置，不加入自动刷写脚本，不复用正常固件的构建缓存。
+- 构建后检查最终软件包、FIT 子镜像校验、板型、512 MiB 内存和标准 128 MiB NAND 分区布局、内核有线/闪存驱动、关键恢复工具及默认网络配置。
+- 整包上限为 16 MiB，展开后的 CPIO 上限为 64 MiB，解压内核上限为 32 MiB。这些是保守的项目门槛，不是硬件上限或启动成功保证；检查使用的 TFTP 加载地址假设为 `0x46000000`，内核地址为 `0x48000000`，并不验证实际 U-Boot 环境或 ramdisk 重定位。
+
+在 Actions 手动运行 `N60Pro Wired Recovery Build`。成功后，`n60pro-wired-recovery` 附件和 `N60Pro_WiredRecovery_*` 预发布中包含 `immortalwrt-mediatek-filogic-netcore_n60-pro-initramfs-recovery.itb`、校验文件和检查报告，不发布 sysupgrade、BL2 或 FIP。原来的正常固件任务仍会产生它自己的完整 recovery，请勿混用。
+
+详细有线连接及启动测试说明见 [有线 Recovery 说明](docs/wired-recovery.md)，这份独立说明也随 recovery 附件发布。
+
+**本流程尚需实际编译和实机启动验证。** 保留已经验证能恢复的官方 recovery，先确认设备使用标准分区布局以及 U-Boot 恢复模式不会自动写 NAND，再测试仅从 RAM 启动。TFTP 发送完成不是 Linux 启动成功的证据；不要仅为使用精简包而改写 BL2/FIP。
+
 ## 刷机步骤（N60 Pro）
 
 > ⚠️ 刷机有风险，变砖可救（recovery 镜像 + TTL/有线恢复），操作前确保电量/电源稳定。
