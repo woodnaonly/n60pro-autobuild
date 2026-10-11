@@ -36,7 +36,6 @@ env:
   REPO_BRANCH: 25.12
   CONFIG_FILE: configs/n60pro.config
   DIY_P1_SH: scripts/diy-part1.sh
-  DIY_P2_SH: scripts/diy-part2.sh
 
 permissions: write-all
 
@@ -140,12 +139,11 @@ jobs:
           fi
           unset root_hash
 
-      - name: Apply feeds + 512ROM profile
+      - name: Add package feeds
         working-directory: openwrt
         run: |
-          chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH $GITHUB_WORKSPACE/$DIY_P2_SH
+          chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH
           $GITHUB_WORKSPACE/$DIY_P1_SH
-          $GITHUB_WORKSPACE/$DIY_P2_SH
 
       - name: Configure default Wi-Fi credentials
         env:
@@ -162,7 +160,6 @@ jobs:
           fi
           mkdir -p openwrt/files
           cp -r "$GITHUB_WORKSPACE/rootfs-overlay/." openwrt/files/
-          ls openwrt/target/linux/mediatek/dts/ | grep 512rom
 
       - name: Update & install feeds
         working-directory: openwrt
@@ -175,8 +172,8 @@ jobs:
           cp $CONFIG_FILE openwrt/.config
           cd openwrt
           make defconfig
-          if ! grep -Fxq 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_netcore_n60-pro-512rom=y' .config; then
-            echo "::error::N60 Pro 512ROM target was not selected after make defconfig"
+          if ! grep -Fxq 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_netcore_n60-pro=y' .config; then
+            echo "::error::N60 Pro target was not selected after make defconfig"
             exit 1
           fi
           forbidden_packages=(
@@ -197,6 +194,17 @@ jobs:
             qmodem
             luci-app-qmodem-next
             kmod-usb-ledtrig-usbport
+            luci-app-passwall
+            luci-i18n-passwall-zh-cn
+            homebox
+            sing-box
+            xray-core
+            ipt2socks
+            v2ray-plugin
+            shadowsocks-rust-sslocal
+            shadowsocksr-libev-ssr-local
+            shadowsocksr-libev-ssr-redir
+            luci-app-netspeedtest
           )
           for package in "${forbidden_packages[@]}"; do
             if grep -Fxq "CONFIG_PACKAGE_${package}=y" .config; then
@@ -213,28 +221,22 @@ jobs:
             autocore
             luci-app-turboacc-mtk
             luci-app-filemanager
-            luci-app-netspeedtest
+            luci-app-netspeed
+            netspeed-engine
             luci-app-package-manager
-            luci-app-passwall
             luci-app-usteer
             luci-i18n-base-zh-cn
             luci-i18n-firewall-zh-cn
-            luci-i18n-passwall-zh-cn
             luci-i18n-usteer-zh-cn
             dnsmasq-full
             usteer
             luci-lib-chartjs
             luci-theme-bootstrap
-            sing-box
-            xray-core
-            ipt2socks
-            v2ray-plugin
-            shadowsocks-rust-sslocal
-            shadowsocksr-libev-ssr-local
-            shadowsocksr-libev-ssr-redir
-            homebox
             ookla-speedtest
             iperf3
+            honk
+            luci-app-honk
+            luci-i18n-honk-zh-cn
             u-boot-mt7986_netcore_n60-pro
             trusted-firmware-a-mt7986-spim-nand-ddr4
           )

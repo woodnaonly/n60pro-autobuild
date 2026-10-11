@@ -8,10 +8,9 @@
 - USB 存储支持（USB 3.0、UAS、automount；与当前路由器包配置一致）
 - 不包含 USB 蜂窝模组驱动或拨号工具
 - MTK HNAT 硬件加速（`luci-app-turboacc-mtk`）
-- 路由器常用应用: PassWall、多协议代理核心、LuCI 文件管理、uSteer、网速测试
-- 软件包按 ImmortalWrt 25.12 源码构建；网速测试使用当前上游依赖，不复用 Kwrt 24.10 的二进制包
-- 旧版 Kwrt 的 `shadowsocks-libev` 分包不在目标源码中，使用目标源码可构建的代理核心
-- 512MB 闪存大分区布局（ubi=490MB 吃满，适配恩山 WildEdition U-Boot `506.5MB` 分区表）
+- honk 透明代理：LuCI 界面与打包来自 189160/luci-app-honk，核心取 Glassyiris/honk（daeuniverse/honk 的 fork）预编译包，内核开启 BTF，服务默认关闭
+- 路由器常用应用: honk 透明代理、LuCI 文件管理、uSteer、网速测试
+- 软件包按 ImmortalWrt 25.12 源码构建；网速测试由 FengYinYH/luci-app-netspeedtest v1.0.0-r2 源码构建（netspeed-engine、luci-app-netspeed），不复用 Kwrt 24.10 的二进制包
 
 ## 使用
 
@@ -37,6 +36,6 @@
 
 ## 默认参数
 
-- IP: `192.168.1.1`，用户 `root`，默认密码 `t29Ur9.3@casd2.`（可在 Actions 手动触发时自定义）
+- IP: `10.0.0.1`，用户 `root`，默认密码 `t29Ur9.3@casd2.`（可在 Actions 手动触发时自定义）
 - 2.4GHz Wi-Fi: 默认 SSID `ChianNet-Suchuu`，密码 `kfuy4937`（WPA2-PSK，可在 Actions 手动触发时自定义）
 - 5GHz Wi-Fi: 默认 SSID `ChianNet-Suchuu-5G`，密码 `kfuy4937`（WPA2-PSK，可在 Actions 手动触发时自定义）
