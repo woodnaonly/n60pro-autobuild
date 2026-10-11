@@ -24,8 +24,14 @@
 > ⚠️ 刷机有风险，变砖可救（recovery 镜像 + TTL/有线恢复），操作前确保电量/电源稳定。
 
 1. **刷第三方 uboot**（如果还没刷）：
+   - 所需 U-Boot 版本：2025.10（与本固件的 `u-boot-mt7986_netcore_n60-pro` 包一致）
    - 下载 Release 里的 `bl31-uboot.fip` 和 `preloader.bin`
-   - SSH 到当前固件（原厂需先开 SSH），上传后：
+   - SSH 到当前固件（原厂需先开 SSH），上传后先核对分区：
+     ```
+     cat /proc/mtd
+     ls -l /tmp/preloader.bin /tmp/bl31-uboot.fip
+     ```
+     核对要点：`/proc/mtd` 中必须有名为 `Preloader` 和 `FIP` 的分区，两个文件的字节数都不能超过对应分区的大小（`/proc/mtd` 的 size 为十六进制，需换算）。任一条件不满足就停止，不要执行写入。本固件只面向标准 N60 Pro，已移除 512ROM 变体，分区不一致时不要刷入。
      ```
      mtd write /tmp/preloader.bin Preloader
      mtd write /tmp/bl31-uboot.fip FIP

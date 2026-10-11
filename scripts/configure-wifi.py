@@ -46,8 +46,9 @@ def main():
     new_2g = f"configure_band 2g {sh_quote(ssid_2g)} {sh_quote(wifi_pass)}"
     new_5g = f"configure_band 5g {sh_quote(ssid_5g)} {sh_quote(wifi_pass)}"
 
-    content, count_2g = re.subn(pattern_2g, new_2g, content)
-    content, count_5g = re.subn(pattern_5g, new_5g, content)
+    # 用函数返回替换文本，避免密码中的反斜杠被当作正则模板转义解析
+    content, count_2g = re.subn(pattern_2g, lambda _m: new_2g, content)
+    content, count_5g = re.subn(pattern_5g, lambda _m: new_5g, content)
 
     if count_2g != 1 or count_5g != 1:
         print(f"::error::Expected 1 replacement for each band in {path}, got 2g={count_2g}, 5g={count_5g}", file=sys.stderr)
