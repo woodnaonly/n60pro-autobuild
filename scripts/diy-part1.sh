@@ -6,7 +6,8 @@ add_feed() {
 }
 
 # sirpdboy is kept only for ookla-speedtest; the speed test UI comes from FengYinYH.
-add_feed "src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;v5.2.1"
-add_feed "src-git netspeed https://github.com/FengYinYH/luci-app-netspeedtest.git;v1.0.0-r2"
-add_feed "src-git honk https://github.com/189160/luci-app-honk.git;honk_2026.10.09"
+# All feeds follow their default branch (main) instead of a fixed tag.
+add_feed "src-git netspeedtest https://github.com/sirpdboy/netspeedtest.git;main"
+add_feed "src-git netspeed https://github.com/FengYinYH/luci-app-netspeedtest.git;main"
+add_feed "src-git honk https://github.com/189160/luci-app-honk.git;main"
 cat feeds.conf.default

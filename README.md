@@ -10,7 +10,7 @@
 - MTK HNAT 硬件加速（`luci-app-turboacc-mtk`）
 - honk 透明代理：LuCI 界面与打包来自 189160/luci-app-honk，核心取 Glassyiris/honk（daeuniverse/honk 的 fork）预编译包，内核开启 BTF，服务默认关闭
 - 路由器常用应用: honk 透明代理、LuCI 文件管理、uSteer、网速测试
-- 软件包按 ImmortalWrt 25.12 源码构建；网速测试由 FengYinYH/luci-app-netspeedtest v1.0.0-r2 源码构建（netspeed-engine、luci-app-netspeed），不复用 Kwrt 24.10 的二进制包
+- 软件包按 ImmortalWrt 25.12 源码构建；网速测试由 FengYinYH/luci-app-netspeedtest 的 main 分支源码构建（netspeed-engine、luci-app-netspeed），不复用 Kwrt 24.10 的二进制包
 
 ## 使用
 
