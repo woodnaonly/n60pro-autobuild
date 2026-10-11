@@ -25,7 +25,7 @@ permissions:
 
 concurrency:
   group: dhcpd-fip-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -68,6 +68,13 @@ jobs:
           ucfg="uboot-mtk-20250711/configs-fit/$cfg"
           sed -i 's/^CONFIG_SYS_REDUNDAND_ENVIRONMENT=y$/CONFIG_ENV_REDUNDANT=y/' "$ucfg"
           grep -Fxq 'CONFIG_ENV_REDUNDANT=y' "$ucfg" || echo 'CONFIG_ENV_REDUNDANT=y' >> "$ucfg"
+
+          # With an empty default FIT config, boot_from_ubi() tries the
+          # "kernel" volume before "fit". The router still carries a stale
+          # "kernel" volume, while the running system lives in "fit"
+          # (root=/dev/fit0). Match ImmortalWrt's own U-Boot: bootconf=config-1.
+          sed -i '/^CONFIG_MTK_DEFAULT_FIT_BOOT_CONF=/d' "$ucfg"
+          echo 'CONFIG_MTK_DEFAULT_FIT_BOOT_CONF="config-1"' >> "$ucfg"
 
           echo "=== ATF config ==="
           cat "atf-20250711/configs/$cfg"
@@ -125,6 +132,7 @@ jobs:
             'CONFIG_MTDPARTS_DEFAULT="spi-nand0:1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),-(ubi)"'
             'CONFIG_MTK_BOOTMENU_UBI=y'
             'CONFIG_MTK_WEB_FAILSAFE=y'
+            'CONFIG_MTK_DEFAULT_FIT_BOOT_CONF="config-1"'
           )
           for line in "${need[@]}"; do
             grep -Fxq "$line" "$ucfg" || { echo "::error::missing in U-Boot config: $line"; exit 1; }
@@ -140,6 +148,14 @@ jobs:
           name=$(basename "$fip")
           (cd upload && md5sum "$name" > "$name.md5" && sha256sum "$name" > "$name.sha256")
           [ -f uboot-mtk-20250711/u-boot-initial-env ] && cp -v uboot-mtk-20250711/u-boot-initial-env upload/u-boot-initial-env.txt
+          if [ -f upload/u-boot-initial-env.txt ]; then
+            echo "=== default env ==="
+            cat upload/u-boot-initial-env.txt
+            grep -E '^(bootcmd|bootconf|ipaddr|serverip|bootmenu_delay)=' upload/u-boot-initial-env.txt \
+              | while IFS= read -r l; do echo "::notice::env $l"; done
+          else
+            echo "::warning::u-boot-initial-env not generated"
+          fi
           cp -v uboot-mtk-20250711/.config upload/uboot-config.txt
           cp -v build.log upload/build.log
           echo "FIP_NAME=$name" >> "$GITHUB_ENV"
