@@ -54,17 +54,25 @@ jobs:
           node --version
           npm --version
 
-      - name: Use non-NMBM ATF config
+      - name: Prepare ATF / U-Boot configs
         working-directory: bl-mt798x-dhcpd
         run: |
           # ubootmod reads the ATF config from configs/; the router's current
           # BL2 does not use NMBM, so build with the configs-nonmbm variant.
           cfg="${SOC}_${BOARD}_defconfig"
           cp -fv "atf-20250711/configs-nonmbm/$cfg" "atf-20250711/configs/$cfg"
+
+          # U-Boot 2025.07 renamed SYS_REDUNDAND_ENVIRONMENT to ENV_REDUNDANT.
+          # Without it the ubootenv2 copy is dropped and the env format no
+          # longer matches the redundant env ImmortalWrt already wrote.
+          ucfg="uboot-mtk-20250711/configs-fit/$cfg"
+          sed -i 's/^CONFIG_SYS_REDUNDAND_ENVIRONMENT=y$/CONFIG_ENV_REDUNDANT=y/' "$ucfg"
+          grep -Fxq 'CONFIG_ENV_REDUNDANT=y' "$ucfg" || echo 'CONFIG_ENV_REDUNDANT=y' >> "$ucfg"
+
           echo "=== ATF config ==="
           cat "atf-20250711/configs/$cfg"
           echo "=== U-Boot config (configs-fit) ==="
-          cat "uboot-mtk-20250711/configs-fit/$cfg"
+          cat "$ucfg"
 
       - name: Build FIP
         working-directory: bl-mt798x-dhcpd
@@ -100,10 +108,16 @@ jobs:
 
           # Hard checks on the U-Boot config actually used.
           ucfg=uboot-mtk-20250711/.config
+          # Report defconfig options that olddefconfig silently dropped.
+          dcfg="uboot-mtk-20250711/configs-fit/${SOC}_${BOARD}_defconfig"
+          while IFS= read -r line; do
+            grep -Fxq "$line" "$ucfg" || echo "::warning::defconfig option not in final .config: $line"
+          done < <(grep -E '^CONFIG_[A-Za-z0-9_]+=' "$dcfg")
           echo "=== U-Boot .config (key options) ==="
           grep -E '^CONFIG_(ENV_|MTK_|MTDPARTS|MEDIATEK_|WEBUI_|IPADDR|SERVERIP|NMBM|ENABLE_NAND_NMBM)' "$ucfg" || true
           need=(
             'CONFIG_ENV_IS_IN_UBI=y'
+            'CONFIG_ENV_REDUNDANT=y'
             'CONFIG_ENV_SIZE=0x1f000'
             'CONFIG_ENV_UBI_PART="ubi"'
             'CONFIG_ENV_UBI_VOLUME="ubootenv"'
