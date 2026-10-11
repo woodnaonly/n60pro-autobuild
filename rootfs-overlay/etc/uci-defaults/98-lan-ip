@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+uci set network.lan.ipaddr='10.0.0.1'
+uci commit network
