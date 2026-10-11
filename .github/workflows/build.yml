@@ -34,7 +34,6 @@ on:
 env:
   REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase
   REPO_BRANCH: 25.12
-  REPO_COMMIT: a99b0888b88f134f56bcb2a7d93027b5d20638a9  # 同步上游时更新此 SHA，并检查 configs/n60pro.config 中带日期的配置项
   CONFIG_FILE: configs/n60pro.config
   DIY_P1_SH: scripts/diy-part1.sh
 
@@ -73,17 +72,11 @@ jobs:
       - name: Clone source
         run: |
           df -hT $PWD
-          git init openwrt
+          git clone --depth 1 -b $REPO_BRANCH $REPO_URL openwrt
           cd openwrt
-          git remote add origin "$REPO_URL"
-          git fetch --depth 1 origin "$REPO_COMMIT"
-          git checkout --detach FETCH_HEAD
-          if [ "$(git rev-parse HEAD)" != "$REPO_COMMIT" ]; then
-            echo "::error::Checked out source does not match pinned commit $REPO_COMMIT"
-            exit 1
-          fi
           echo "=== source head ==="
           git log -1 --format='%h %s (%cd)' --date=short
+          echo "UPSTREAM_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Cache toolchain
         if: inputs.clean_cache != true
@@ -93,8 +86,8 @@ jobs:
             openwrt/dl
             openwrt/staging_dir
             openwrt/.ccache
-          key: n60pro-toolchain-${{ env.REPO_BRANCH }}-${{ env.REPO_COMMIT }}-${{ hashFiles('configs/n60pro.config') }}
-          restore-keys: n60pro-toolchain-${{ env.REPO_BRANCH }}-${{ env.REPO_COMMIT }}-
+          key: n60pro-toolchain-${{ env.REPO_BRANCH }}-${{ env.UPSTREAM_SHA }}-${{ hashFiles('configs/n60pro.config') }}
+          restore-keys: n60pro-toolchain-${{ env.REPO_BRANCH }}-
 
       - name: Set default root password
         working-directory: openwrt
