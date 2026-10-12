@@ -53,6 +53,14 @@ PARTITIONS = {
     "fip": (0x380000, 0x200000),
     "ubi": (0x580000, 0x7A80000),
 }
+FORBIDDEN_PATHS = (
+    "usr/share/luci/", "usr/lib/lua/luci/", "usr/share/v2ray/", "usr/share/honk/",
+    "etc/Wireless/", "lib/firmware/mediatek/", "lib/netifd/wireless/",
+)
+FORBIDDEN_PLUGIN_WORDS = ("honk", "netspeed", "geoip", "geosite")
+FORBIDDEN_DRIVER_DIRS = ("lib/modules/", "lib/firmware/", "etc/Wireless/", "etc/modules.d/")
+FORBIDDEN_DRIVER_WORDS = ("wifi", "mt76", "mt7915", "mac80211", "cfg80211", "conninfra", "warp")
+FORBIDDEN_OVERLAY = ("etc/uci-defaults/98-lan-ip", "etc/uci-defaults/99-default-wifi")
 
 
 def require(condition, message):
@@ -97,6 +105,9 @@ def check_config(values):
         "CONFIG_TARGET_PER_DEVICE_ROOTFS", "CONFIG_TARGET_ROOTFS_INITRAMFS",
         "CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE",
         "CONFIG_TARGET_INITRAMFS_COMPRESSION_XZ",
+        # image.mk only creates a device's "$(device)-images" rule for enabled
+        # rootfs filesystems; with none the mediatek ARTIFACTS step fails.
+        "CONFIG_TARGET_ROOTFS_SQUASHFS",
     ):
         require(values.get(key) == "y", f"Required setting missing: {key}=y")
     devices = [
@@ -109,7 +120,7 @@ def check_config(values):
         "CONFIG_ALL", "CONFIG_ALL_KMODS", "CONFIG_ALL_NONSHARED",
         "CONFIG_BUILDBOT", "CONFIG_TARGET_INITRAMFS_FORCE",
         "CONFIG_KERNEL_DEBUG_INFO_BTF", "CONFIG_KERNEL_XDP_SOCKETS",
-        "CONFIG_TARGET_ROOTFS_SQUASHFS", "CONFIG_TARGET_ROOTFS_EROFS",
+        "CONFIG_TARGET_ROOTFS_EROFS",
     ):
         require(values.get(key, "n") == "n", f"Unexpected recovery setting: {key}")
     packages = [
@@ -129,16 +140,22 @@ def check_config(values):
     return sorted(set(packages) - BUILD_ONLY)
 
 
-def check_kernel_config(values):
-    for name in (
-        "BLK_DEV_INITRD", "RD_XZ", "NET_MEDIATEK_SOC", "NET_DSA_MT7530",
-        "MAXLINEAR_GPHY", "MTD_SPI_NAND", "MTD_UBI",
-    ):
-        require(values.get(f"CONFIG_{name}") == "y",
-                f"Required built-in kernel support missing: {name}")
-    for name in ("MT_WIFI", "MTK_MT_WIFI", "MT76_CORE", "MT7915E", "MAC80211"):
-        require(values.get(f"CONFIG_{name}", "n") == "n",
-                f"Unexpected wireless kernel support: {name}")
+def check_kernel_config(configs):
+    """Every kernel built here must be wireless-free and drive the board."""
+    require(configs, "No kernel config to check")
+    for values in configs:
+        for name in ("NET_MEDIATEK_SOC", "NET_DSA_MT7530", "MAXLINEAR_GPHY",
+                     "MTD_SPI_NAND", "MTD_UBI"):
+            require(values.get(f"CONFIG_{name}") == "y",
+                    f"Required built-in kernel support missing: {name}")
+        for name in ("MT_WIFI", "MTK_MT_WIFI", "MT76_CORE", "MT7915E", "MAC80211"):
+            require(values.get(f"CONFIG_{name}", "n") == "n",
+                    f"Unexpected wireless kernel support: {name}")
+    # Per-device rootfs builds a second kernel with the ramdisk embedded, so the
+    # initrd options only have to be present in the one that ships the recovery.
+    for name in ("BLK_DEV_INITRD", "RD_XZ"):
+        require(any(values.get(f"CONFIG_{name}") == "y" for values in configs),
+                f"No recovery kernel config enables: {name}")
 
 
 def run_tool(args, data=None):
@@ -233,17 +250,17 @@ def check_archive_names(names):
         require(not path.is_absolute() and ".." not in path.parts,
                 f"Unsafe archive path: {name}")
         require(name == path.as_posix(), f"Noncanonical archive path: {name}")
-        require(not name.startswith((
-            "usr/share/luci/", "usr/lib/lua/luci/", "usr/share/v2ray/",
-            "usr/share/honk/", "etc/Wireless/", "lib/firmware/mediatek/",
-        )), f"Unexpected wireless/plugin files: {name}")
-        require(not any(word in path.name.lower() for word in (
-            "honk", "netspeed", "geoip", "geosite", "mt_wifi", "mt7915",
-            "mt76", "mac80211", "cfg80211", "conninfra", "warp.ko",
-        )), f"Unexpected wireless/plugin file: {name}")
-        require(name not in (
-            "etc/uci-defaults/98-lan-ip", "etc/uci-defaults/99-default-wifi",
-        ), f"Normal firmware overlay leaked into recovery: {name}")
+        require(not name.startswith(FORBIDDEN_PATHS),
+                f"Unexpected wireless or plugin files: {name}")
+        require(not any(word in path.name.lower() for word in FORBIDDEN_PLUGIN_WORDS),
+                f"Unexpected plugin file: {name}")
+        # base-files ships etc/hotplug.d/firmware/11-mt76-caldata in every image,
+        # so wireless names only incriminate a file inside a driver directory.
+        require(not (name.startswith(FORBIDDEN_DRIVER_DIRS)
+                     and any(word in name.lower() for word in FORBIDDEN_DRIVER_WORDS)),
+                f"Unexpected wireless driver file: {name}")
+        require(name not in FORBIDDEN_OVERLAY,
+                f"Normal firmware overlay leaked into recovery: {name}")
     missing = REQUIRED_FILES - names
     require(not missing, f"Missing recovery files: {sorted(missing)}")
     return names
@@ -284,10 +301,10 @@ def read_manifest(path):
     return check_packages(packages)
 
 
-def check_image(image, kernel_config, manifest):
+def check_image(image, kernel_configs, manifest):
     image = Path(image)
     require(image.stat().st_size <= MAX_FIT, "FIT exceeds the 16 MiB project limit")
-    check_kernel_config(read_config(kernel_config))
+    check_kernel_config([read_config(path) for path in kernel_configs])
     packages = read_manifest(manifest)
     require(fdt(image, "/configurations", "default") == ["config-1"],
             "FIT default configuration must be config-1")
@@ -355,7 +372,7 @@ def main():
     config.add_argument("path", type=Path)
     image = commands.add_parser("image")
     image.add_argument("path", type=Path)
-    image.add_argument("--kernel-config", type=Path, required=True)
+    image.add_argument("--kernel-config", type=Path, action="append", required=True)
     image.add_argument("--manifest", type=Path, required=True)
     image.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()

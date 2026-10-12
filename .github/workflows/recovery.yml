@@ -145,17 +145,25 @@ jobs:
           images=("$target"/*-netcore_n60-pro-initramfs-recovery.itb)
           kernels=(recovery-openwrt/build_dir/target-*/linux-mediatek_filogic/linux-*/.config)
           [ "${#images[@]}" -eq 1 ] || { echo "::error::Expected one N60 Pro recovery image"; exit 1; }
-          [ "${#kernels[@]}" -eq 1 ] || { echo "::error::Expected one kernel config"; exit 1; }
+          [ "${#kernels[@]}" -ge 1 ] || { echo "::error::No kernel config found"; exit 1; }
+          # Per-device rootfs builds a second kernel; the recovery image is the one
+          # that keeps initrd support.
+          recovery_kernel=""
+          args=()
+          for cfg in "${kernels[@]}"; do
+            args+=(--kernel-config "$cfg")
+            grep -qx 'CONFIG_BLK_DEV_INITRD=y' "$cfg" && recovery_kernel="${recovery_kernel:-$cfg}"
+          done
+          [ -n "$recovery_kernel" ] || { echo "::error::No kernel config enables an initrd"; exit 1; }
           image="${images[0]}"
           manifest="$target/immortalwrt-mediatek-filogic.manifest"
           mkdir -p recovery-upload
-          python3 scripts/check-recovery.py image "$image" \
-            --kernel-config "${kernels[0]}" --manifest "$manifest" \
-            --report recovery-upload/recovery-check.json
+          python3 scripts/check-recovery.py image "$image" "${args[@]}" \
+            --manifest "$manifest" --report recovery-upload/recovery-check.json
           cp "$image" "$manifest" recovery-upload/
           cp "$target/config.buildinfo" "$target/feeds.buildinfo" "$target/version.buildinfo" recovery-upload/
           cp recovery-openwrt/.config recovery-upload/recovery-config.txt
-          cp "${kernels[0]}" recovery-upload/kernel-config.txt
+          cp "$recovery_kernel" recovery-upload/kernel-config.txt
           cp docs/wired-recovery.md recovery-upload/README.md
           printf '%s\n' "$REPO_COMMIT" > recovery-upload/upstream-commit.txt
           (
