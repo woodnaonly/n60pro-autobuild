@@ -117,12 +117,16 @@ def check_config(values):
         for key, value in values.items()
         if key.startswith("CONFIG_PACKAGE_") and value == "y"
     ]
+    # .config also carries package feature sub-options (PACKAGE_TAR_XZ, PACKAGE_dnsmasq_full_*)
+    # and every RAM-boot bl2 variant the target defaults, so it is not an installed-package
+    # list; the strict allowlist only runs on the manifest.
+    missing = REQUIRED_PACKAGES - set(packages)
+    require(not missing, f"Missing recovery packages: {sorted(missing)}")
     for name in BUILD_ONLY:
-        # Kconfig declares boot artifacts as bool, so they can only be '=y'; they
-        # stage into the image directory and must never reach the rootfs checks.
+        # Kconfig declares boot artifacts as bool, so they can only be '=y'.
         require(values.get(f"CONFIG_PACKAGE_{name}") == "y",
                 f"Boot artifact must be selected for build: {name}=y")
-    return check_packages(set(packages) - BUILD_ONLY)
+    return sorted(set(packages) - BUILD_ONLY)
 
 
 def check_kernel_config(values):
@@ -358,7 +362,7 @@ def main():
     try:
         if args.command == "config":
             packages = check_config(read_config(args.path))
-            print(f"Recovery config passed: {len(packages)} installed packages")
+            print(f"Recovery config passed: {len(packages)} selected packages")
         else:
             report = check_image(args.path, args.kernel_config, args.manifest)
             args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
