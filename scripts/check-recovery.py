@@ -118,9 +118,11 @@ def check_config(values):
         if key.startswith("CONFIG_PACKAGE_") and value == "y"
     ]
     for name in BUILD_ONLY:
-        require(values.get(f"CONFIG_PACKAGE_{name}") == "m",
-                f"Boot artifact must be build-only: {name}=m")
-    return check_packages(packages)
+        # Kconfig declares boot artifacts as bool, so they can only be '=y'; they
+        # stage into the image directory and must never reach the rootfs checks.
+        require(values.get(f"CONFIG_PACKAGE_{name}") == "y",
+                f"Boot artifact must be selected for build: {name}=y")
+    return check_packages(set(packages) - BUILD_ONLY)
 
 
 def check_kernel_config(values):
